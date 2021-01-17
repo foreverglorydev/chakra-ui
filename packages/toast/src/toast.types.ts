@@ -33,7 +33,7 @@ export interface ToastOptions {
   /**
    * The toast's id
    */
-  id: ToastId
+  id: string
   /**
    * The duration of the toast
    */
