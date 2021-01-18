@@ -13,9 +13,10 @@ type State = Record<Position, Map<string, ToastOptions>>
 
 export enum ActionType {
   ADD_TOAST,
-  UPDATE_TOAST,
   CLOSE_TOAST,
   REMOVE_TOAST,
+  UPSERT_TOAST,
+  UPDATE_TOAST,
   CLOSE_ALL_TOAST,
 }
 
@@ -40,6 +41,10 @@ type Action =
       type: ActionType.CLOSE_ALL_TOAST
       positions: ToastPosition[]
     }
+  | {
+      type: ActionType.UPSERT_TOAST
+      toast: ToastOptions
+    }
 
 export const getToastPosition = (toasts: State, id: string) => {
   const toastMap = Object.values(toasts)
@@ -60,6 +65,34 @@ export const reducer = (state: State, action: Action): State => {
 
       return newState
     }
+    case ActionType.UPDATE_TOAST: {
+      const { id } = action.toast
+      const position = getToastPosition(state, id)
+
+      if (position) {
+        newState[position].set(id, action.toast)
+      }
+
+      return newState
+    }
+    case ActionType.UPSERT_TOAST: {
+      const { toast } = action
+      const { id } = toast
+      if (newState[toast.position].has(id)) {
+        return reducer(state, { type: ActionType.UPDATE_TOAST, toast })
+      }
+      return reducer(state, { type: ActionType.ADD_TOAST, toast })
+    }
+    case ActionType.REMOVE_TOAST: {
+      const { id } = action
+      const position = getToastPosition(state, id)
+
+      if (position) {
+        newState[position].delete(id)
+      }
+
+      return newState
+    }
     case ActionType.CLOSE_TOAST: {
       const { id } = action
       const position = getToastPosition(state, id)
@@ -71,26 +104,6 @@ export const reducer = (state: State, action: Action): State => {
       if (toast) {
         toast.requestClose = true
         newState[position].set(id, toast)
-      }
-
-      return newState
-    }
-    case ActionType.UPDATE_TOAST: {
-      const { id } = action.toast
-      const position = getToastPosition(state, id)
-
-      if (position) {
-        newState[position].set(id, action.toast)
-      }
-
-      return newState
-    }
-    case ActionType.REMOVE_TOAST: {
-      const { id } = action
-      const position = getToastPosition(state, id)
-
-      if (position) {
-        newState[position].delete(id)
       }
 
       return newState
