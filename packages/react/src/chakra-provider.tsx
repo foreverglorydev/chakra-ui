@@ -36,7 +36,7 @@ export interface ChakraProviderProps {
    *
    * @default localStorageManager
    */
-  colorModeManager?: ColorModeProviderProps["colorModeManager"]
+  colorModeManager?: ColorModeProviderProps["manager"]
   children?: React.ReactNode
 }
 
@@ -55,10 +55,7 @@ export const ChakraProvider = (props: ChakraProviderProps) => {
 
   return (
     <ThemeProvider theme={theme}>
-      <ColorModeProvider
-        colorModeManager={colorModeManager}
-        options={theme.config}
-      >
+      <ColorModeProvider manager={colorModeManager} options={theme.config}>
         {resetCSS && <CSSReset />}
         <GlobalStyle />
         {portalZIndex ? (

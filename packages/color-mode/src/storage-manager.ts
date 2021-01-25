@@ -1,4 +1,7 @@
-import { ColorMode } from "./color-mode.utils"
+import { isBrowser } from "@chakra-ui/utils"
+import type { ColorMode as BaseColorMode } from "./color-mode.utils"
+
+type ColorMode = BaseColorMode | "system"
 
 const hasLocalStorage = typeof Storage !== "undefined"
 export const storageKey = "chakra-ui-color-mode"
@@ -9,42 +12,31 @@ export interface StorageManager {
   type: "cookie" | "localStorage"
 }
 
-/**
- * Simple object to handle read-write to localStorage
- */
 export const localStorageManager: StorageManager = {
+  type: "localStorage",
   get(init?) {
-    if (!hasLocalStorage) {
-      return init
-    }
-
-    const maybeValue = window.localStorage.getItem(storageKey) as ColorMode
-
+    if (!hasLocalStorage || !isBrowser) return init
+    const maybeValue = localStorage.getItem(storageKey) as ColorMode | undefined
     return maybeValue ?? init
   },
   set(value) {
-    if (hasLocalStorage) {
-      window.localStorage.setItem(storageKey, value)
-    }
+    if (!hasLocalStorage || !isBrowser) return
+    localStorage.setItem(storageKey, value)
   },
-  type: "localStorage",
 }
 
-/**
- * Simple object to handle read-write to cookies
- */
-export const cookieStorageManager = (cookies = ""): StorageManager => ({
+export const cookieStorageManager: StorageManager = {
+  type: "cookie",
   get(init?) {
-    const match = cookies.match(new RegExp(`(^| )${storageKey}=([^;]+)`))
-
-    if (match) {
-      return match[2] as ColorMode
-    }
-
-    return init
+    if (typeof document === "undefined") return init
+    const match = document.cookie.match(
+      new RegExp(`(^| )${storageKey}=([^;]+)`),
+    )
+    const maybeValue = match?.[2] as ColorMode
+    return maybeValue ?? init
   },
   set(value) {
+    if (typeof document === "undefined") return
     document.cookie = `${storageKey}=${value}; max-age=31536000; path=/`
   },
-  type: "cookie",
-})
+}

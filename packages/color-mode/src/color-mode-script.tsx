@@ -1,48 +1,18 @@
 import * as React from "react"
-import { ColorMode } from "./color-mode-provider"
-
-type Mode = ColorMode | "system" | undefined
-
-function setScript(initialValue: Mode) {
-  const mql = window.matchMedia("(prefers-color-scheme: dark)")
-  const systemPreference = mql.matches ? "dark" : "light"
-
-  let persistedPreference: Mode
-
-  try {
-    persistedPreference = localStorage.getItem("chakra-ui-color-mode") as Mode
-  } catch (error) {
-    console.log(
-      "Chakra UI: localStorage is not available. Color mode persistence might not work as expected",
-    )
-  }
-
-  const isInStorage = typeof persistedPreference === "string"
-
-  let colorMode: Mode
-
-  if (isInStorage) {
-    colorMode = persistedPreference
-  } else {
-    colorMode = initialValue === "system" ? systemPreference : initialValue
-  }
-
-  if (colorMode) {
-    const root = document.documentElement
-    root.style.setProperty("--chakra-ui-color-mode", colorMode)
-  }
-}
 
 interface ColorModeScriptProps {
-  initialColorMode?: Mode
+  type?: "localStorage" | "cookie"
+  initialColorMode?: "light" | "dark" | "system"
 }
 
-/**
- * Script to add to the root of your application when using localStorage,
- * to help prevent flash of color mode that can happen during page load.
- */
-export const ColorModeScript = (props: ColorModeScriptProps) => {
-  const { initialColorMode = "light" } = props
-  const html = `(${String(setScript)})('${initialColorMode}')`
-  return <script dangerouslySetInnerHTML={{ __html: html }} />
+export const ColorModeScript = (props: ColorModeScriptProps = {}) => {
+  const { initialColorMode: init = "system", type = "localStorage" } = props
+  const k = "chakra-ui-color-mode"
+
+  // prettier-ignore
+  const cookieScript =  `!function(){try {var d=document.documentElement;var ck=document.cookie.match(new RegExp(\`(^| )${k}=([^;]+)\`));var e=ck && ck[2];if(!e)return document.cookie=\`${k}=${init}; max-age=31536000; path=/\`,d.setAttribute('data-theme', ${init});if("system"===e){var t="(prefers-color-scheme: dark)",m=window.matchMedia(t);m.media!==t||m.matches?d.setAttribute('data-theme', 'dark'):d.setAttribute('data-theme', 'light')}else d.setAttribute('data-theme', e)}catch(e){}}()`
+  const localStorageScript = `!function(){try {var d=document.documentElement;var e=localstorage.getItem(${k});if(!e)return localstorage.setItem(${k}, ${init}),d.setAttribute('data-theme', ${init});if("system"===e){var t="(prefers-color-scheme: dark)",m=window.matchMedia(t);m.media!==t||m.matches?d.setAttribute('data-theme', 'dark'):d.setAttribute('data-theme', 'light')}else d.setAttribute('data-theme', e)}catch(e){}}()`
+
+  const __html = type === "cookie" ? cookieScript : localStorageScript
+  return <script id="chakra-script" dangerouslySetInnerHTML={{ __html }} />
 }

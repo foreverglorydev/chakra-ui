@@ -1,13 +1,11 @@
-import { isBrowser, noop, __DEV__ } from "@chakra-ui/utils"
+import { noop, __DEV__ } from "@chakra-ui/utils"
 import * as React from "react"
+import { ColorMode, disabledAllTransition } from "./color-mode.utils"
 import {
-  addListener,
-  ColorMode,
-  getColorScheme,
-  syncBodyClassName,
-  root,
-} from "./color-mode.utils"
-import { localStorageManager, StorageManager } from "./storage-manager"
+  localStorageManager,
+  StorageManager,
+  cookieStorageManager,
+} from "./storage-manager"
 
 export type { ColorMode }
 
@@ -44,7 +42,8 @@ export interface ColorModeProviderProps {
   value?: ColorMode
   children?: React.ReactNode
   options: ColorModeOptions
-  colorModeManager?: StorageManager
+  manager?: StorageManager
+  disabledTransition?: boolean
 }
 
 /**
@@ -56,82 +55,99 @@ export function ColorModeProvider(props: ColorModeProviderProps) {
     value,
     children,
     options: { useSystemColorMode, initialColorMode },
-    colorModeManager = localStorageManager,
+    manager = localStorageManager,
+    disabledTransition = true,
   } = props
 
-  /**
-   * Only attempt to retrieve if we're on the server. Else this will result
-   * in a hydration mismatch warning and partially invalid visuals.
-   *
-   * Else fallback safely to `theme.config.initialColormode` (default light)
-   */
-  const [colorMode, rawSetColorMode] = React.useState<ColorMode | undefined>(
-    colorModeManager.type === "cookie"
-      ? colorModeManager.get(initialColorMode)
-      : initialColorMode,
+  const [colorMode, setColorModeState] = React.useState(() =>
+    manager.get(initialColorMode),
+  )
+
+  const [resolvedColorMode, setResolvedColorMode] = React.useState(
+    () => manager.get(initialColorMode) as ColorMode,
+  )
+
+  const changeColorMode = React.useCallback(
+    (value: ColorMode, updateStorage = true) => {
+      const undo = disabledTransition ? disabledAllTransition() : null
+      if (updateStorage) manager.set(value)
+      const d = document.documentElement
+      d.dataset.theme = value
+      undo?.()
+    },
+    // eslint-disable-next-line
+    [],
   )
 
   React.useEffect(() => {
-    /**
-     * Since we cannot initially retrieve localStorage to due above mentioned
-     * reasons, do so after hydration.
-     *
-     * Priority:
-     * - system color mode
-     * - defined value on <ColorModeScript />, if present
-     * - previously stored value
-     */
-    if (isBrowser && colorModeManager.type === "localStorage") {
-      const mode = useSystemColorMode
-        ? getColorScheme(initialColorMode)
-        : root.get() || colorModeManager.get()
+    if (!useSystemColorMode) return
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
 
-      if (mode) {
-        rawSetColorMode(mode)
-      }
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      const isDark = e.matches
+      const systemTheme = isDark ? "dark" : "light"
+      setResolvedColorMode(systemTheme)
+      if (colorMode === "system") changeColorMode(systemTheme, false)
     }
-  }, [colorModeManager, useSystemColorMode, initialColorMode])
-
-  React.useEffect(() => {
-    const isDark = colorMode === "dark"
-
-    syncBodyClassName(isDark)
-    root.set(isDark ? "dark" : "light")
-  }, [colorMode])
+    media.addListener(handler)
+    handler(media)
+    return () => media.removeListener(handler)
+  }, [colorMode]) // eslint-disable-line
 
   const setColorMode = React.useCallback(
-    (value: ColorMode) => {
-      colorModeManager.set(value)
-      rawSetColorMode(value)
+    (value) => {
+      changeColorMode(value)
+      setColorModeState(value)
     },
-    [colorModeManager],
+    [], // eslint-disable-line
   )
 
-  const toggleColorMode = React.useCallback(() => {
-    setColorMode(colorMode === "light" ? "dark" : "light")
-  }, [colorMode, setColorMode])
+  React.useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key !== "chakra-ui-color-mode") return
+      const theme = e.newValue
+      setColorMode(theme)
+    }
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, []) // eslint-disable-line
 
   React.useEffect(() => {
-    let removeListener: any
-    if (useSystemColorMode) {
-      removeListener = addListener(setColorMode)
-    }
-    return () => {
-      if (removeListener && useSystemColorMode) {
-        removeListener()
+    if (manager.type !== "cookie") return
+
+    function tick() {
+      const _value = cookieStorageManager.get()
+      if (!_value) return
+      const d = document.documentElement
+      if (d.dataset.theme !== _value) {
+        setColorMode(_value)
       }
     }
-  }, [setColorMode, useSystemColorMode])
+    const id = window.setInterval(tick, 100)
+    return () => window.clearInterval(id)
+  }, [colorMode]) // eslint-disable-line
 
-  // presence of `value` indicates a controlled context
-  const context = {
-    colorMode: (value ?? colorMode) as ColorMode,
-    toggleColorMode: value ? noop : toggleColorMode,
-    setColorMode: value ? noop : setColorMode,
-  }
+  const mode = colorMode === "system" ? resolvedColorMode : colorMode
+
+  const toggleColorMode = React.useCallback(() => {
+    setColorMode(mode === "dark" ? "light" : "dark")
+  }, [mode, setColorMode])
+
+  const [mounted, setMounted] = React.useState(false)
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
 
   return (
-    <ColorModeContext.Provider value={context}>
+    <ColorModeContext.Provider
+      value={{
+        colorMode: (value ?? mode) as ColorMode,
+        toggleColorMode: value ? noop : toggleColorMode,
+        setColorMode: value ? noop : setColorMode,
+      }}
+    >
       {children}
     </ColorModeContext.Provider>
   )
