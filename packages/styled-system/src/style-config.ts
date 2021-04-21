@@ -70,7 +70,8 @@ function getResponsiveVariantStyles(
   }
 
   // responsive prop is either in the object or array notation
-  const result = Object.keys(responsiveName).map((key) => {
+  const result = Object.keys(responsiveName).map((key, index, all) => {
+    const isLast = index === all.length - 1
     const value = responsiveName[key]
     const breakpoint = findBreakpoint(key)
 
@@ -80,21 +81,21 @@ function getResponsiveVariantStyles(
 
     const mediaQueryStyles = runIfFn(variantConfig[value], props)
 
+    const mediaQuery = isLast ? breakpoint.minWQuery : breakpoint.minMaxQuery
+
     if (isComponentMultiStyleConfig && mediaQueryStyles) {
       return Object.fromEntries(
         Object.entries(mediaQueryStyles).map(
           ([partName, partStyles]) =>
-            [partName, { [breakpoint.minMaxQuery]: partStyles }] as const,
+            [partName, { [mediaQuery]: partStyles }] as const,
         ),
       )
     }
 
     return {
-      [breakpoint.minMaxQuery]: mediaQueryStyles,
+      [mediaQuery]: mediaQueryStyles,
     }
   })
-
-  console.log("getResponsiveVariantStyles", { result })
 
   return mergeWith({}, ...result)
 }

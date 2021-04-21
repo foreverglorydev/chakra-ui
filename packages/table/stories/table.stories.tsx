@@ -99,8 +99,8 @@ export const simpleLG = () => <SimpleTable size="lg" />
 export const stripedSM = () => <SimpleTable variant="striped" size="sm" />
 export const stripedMD = () => (
   <SimpleTable
-    variant="striped"
-    size={["sm", "md"] as any}
+    variant={["striped", "simple", "striped"]}
+    size={["sm", "md", "lg"]}
     border="10px solid red"
   />
 )
