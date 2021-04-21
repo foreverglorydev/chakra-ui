@@ -1,15 +1,28 @@
-import { Dict, isDefined, mergeWith, runIfFn } from "@chakra-ui/utils"
+import {
+  AnalyzeBreakpointsReturn,
+  Dict,
+  filterUndefined,
+  isDefined,
+  isNumeric,
+  isObject,
+  mergeWith,
+  runIfFn,
+} from "@chakra-ui/utils"
 import { CSSObject, StyleObjectOrFn } from "./types"
 import { ResponsiveValue } from "./utils"
+import { ColorMode } from "@chakra-ui/color-mode"
 
 type Thunk<T, Args extends any[] = []> = T | ((...args: Args) => T)
 
 export interface StyleConfigThemingProps extends Dict {
+  theme: Dict
+  colorMode: ColorMode
+
   variant?: ResponsiveValue<string>
   size?: ResponsiveValue<string>
   colorScheme?: string
-  styleConfig?: StyleConfigObjectOptions
-  theme: Dict
+  styleConfig?: StyleConfigOptions
+  children?: unknown
 }
 
 export type DefaultVariantConfig = Record<
@@ -21,40 +34,78 @@ export type DefaultVariants = Partial<
   Record<"variant" | "size" | (string & {}), DefaultVariantConfig>
 >
 
-export type StyleConfigObjectOptions = CSSObject & {
+export type StyleConfigOptions = CSSObject & {
+  parts?: string[]
   defaultVariants?: DefaultVariants
   defaultProps?: Dict
 }
 
-export type StyleConfigOptions = Thunk<
-  StyleConfigObjectOptions,
-  [StyleConfigThemingProps]
->
+type StyleConfigInterpreterOptions = { isComponentMultiStyleConfig?: boolean }
+
+type BreakpointDetail = NonNullable<AnalyzeBreakpointsReturn>["details"]
 
 function getResponsiveVariantStyles(
   variantConfig: DefaultVariantConfig,
   responsiveName: ResponsiveValue<string>,
+  props: StyleConfigThemingProps,
+  { isComponentMultiStyleConfig }: StyleConfigInterpreterOptions,
 ) {
-  // TODO:
-  //   * Iterate over ResponsiveValue
-  //   * create min-max breakpoints
-  //   * populate breakpoints
-
-  return {
-    // Example:
-    // [variantName]: stylesForVariantNameAtBase,
-    // "@media(min=sm, max=md)": {
-    //   [variantName]: stylesForVariantNameAtSm,
-    // },
-    // "@media(min=md)": {
-    //   [variantName]: stylesForVariantNameAtMd,
-    // },
+  const breakpointDetails: BreakpointDetail = props.theme.__breakpoints?.details
+  if (!breakpointDetails) {
+    return null
   }
+
+  function findBreakpoint(key: string | number) {
+    if (isNumeric(key)) {
+      // key is an array index
+      return breakpointDetails[key]
+    }
+
+    // key is the breakpoint name
+    return breakpointDetails.find((bp) => bp.breakpoint === key)
+  }
+
+  if (!isObject(responsiveName) && !Array.isArray(responsiveName)) {
+    return runIfFn(variantConfig[responsiveName], props)
+  }
+
+  // responsive prop is either in the object or array notation
+  const result = Object.keys(responsiveName).map((key) => {
+    const value = responsiveName[key]
+    const breakpoint = findBreakpoint(key)
+
+    if (!breakpoint) {
+      return null
+    }
+
+    const mediaQueryStyles = runIfFn(variantConfig[value], props)
+
+    if (isComponentMultiStyleConfig && mediaQueryStyles) {
+      return Object.fromEntries(
+        Object.entries(mediaQueryStyles).map(
+          ([partName, partStyles]) =>
+            [partName, { [breakpoint.minMaxQuery]: partStyles }] as const,
+        ),
+      )
+    }
+
+    return {
+      [breakpoint.minMaxQuery]: mediaQueryStyles,
+    }
+  })
+
+  console.log("getResponsiveVariantStyles", { result })
+
+  return mergeWith({}, ...result)
 }
 
-function getAllVariantStyles(defaultVariants: DefaultVariants, props: Dict) {
+function getAllVariantStyles(
+  defaultVariants: DefaultVariants,
+  props: StyleConfigThemingProps,
+  options: StyleConfigInterpreterOptions,
+) {
   return Object.entries(defaultVariants)
-    .flatMap(
+    .map(
       ([
         /** @example `size` or `variant` */
         typeName,
@@ -71,7 +122,12 @@ function getAllVariantStyles(defaultVariants: DefaultVariants, props: Dict) {
           return null
         }
 
-        return getResponsiveVariantStyles(typeConfig, referencingProp)
+        return getResponsiveVariantStyles(
+          typeConfig,
+          referencingProp,
+          props,
+          options,
+        )
       },
     )
     .filter(isDefined)
@@ -80,19 +136,68 @@ function getAllVariantStyles(defaultVariants: DefaultVariants, props: Dict) {
 // TODO:
 //  * call `styleConfig` in packages/system/src/use-style-config.ts
 //  * mark updated object structure config as deprecated
-export function styleConfig(config: StyleConfigOptions) {
-  return function getStyles(props: StyleConfigThemingProps) {
-    const { defaultVariants, defaultProps, ...restStyles } = runIfFn(
-      props.styleConfig ?? config,
+export function interpretStyleConfig(
+  colorMode: ColorMode,
+  theme: Dict,
+  styleConfig: StyleConfigOptions,
+) {
+  return function getStyles(props: Dict) {
+    if (!styleConfig) {
+      return null
+    }
+
+    const {
+      defaultVariants,
+      defaultProps = {},
+      parts,
+      ...restConfig
+    } = styleConfig
+
+    const isComponentMultiStyleConfig = Array.isArray(parts)
+
+    const mergedProps: StyleConfigThemingProps = mergeWith(
+      { theme, colorMode },
+      defaultProps,
       props,
+      filterUndefined(props),
     )
-    const allProps = { ...props, ...defaultProps }
 
     const allDefaultVariantStyles = getAllVariantStyles(
       defaultVariants ?? {},
-      allProps,
+      mergedProps,
+      { isComponentMultiStyleConfig },
     )
 
-    return mergeWith({}, ...allDefaultVariantStyles, restStyles)
+    const maybeMultiPartEmptyStyles = isComponentMultiStyleConfig
+      ? Object.fromEntries(parts!.map((key) => [key, {}]))
+      : {}
+
+    return mergeWith(
+      {},
+      maybeMultiPartEmptyStyles,
+      ...allDefaultVariantStyles,
+      restConfig,
+    )
+  }
+}
+
+type OldStyleConfig = StyleConfigOptions & {
+  baseStyle?: Dict
+  variants?: Dict
+  sizes?: Dict
+}
+
+export function normalizeStyleConfig(
+  styleConfig: OldStyleConfig,
+): StyleConfigOptions {
+  const { baseStyle, variants, sizes, defaultVariants, ...rest } = styleConfig
+  return {
+    ...baseStyle,
+    defaultVariants: {
+      ...defaultVariants,
+      variant: variants,
+      size: sizes,
+    },
+    ...rest,
   }
 }
