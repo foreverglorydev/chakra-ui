@@ -39,9 +39,7 @@ export function useStyleConfig(
     theme,
     normalizeStyleConfig(config),
   )
-  const styles = getStyles(rest)
-  console.log("finalStyles", styles)
-  return styles
+  return getStyles(rest)
 }
 
 export function useMultiStyleConfig(
