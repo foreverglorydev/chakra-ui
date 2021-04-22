@@ -6,11 +6,13 @@ import {
   isNumeric,
   isObject,
   mergeWith,
+  objectFilter,
   runIfFn,
 } from "@chakra-ui/utils"
 import { CSSObject, StyleObjectOrFn } from "./types"
 import { ResponsiveValue } from "./utils"
 import { ColorMode } from "@chakra-ui/color-mode"
+import { isStyleProp } from "./system"
 
 type Thunk<T, Args extends any[] = []> = T | ((...args: Args) => T)
 
@@ -80,20 +82,26 @@ function getResponsiveVariantStyles(
     }
 
     const mediaQueryStyles = runIfFn(variantConfig[value], props)
-
     const mediaQuery = isLast ? breakpoint.minWQuery : breakpoint.minMaxQuery
+
+    // extract the style props and spread them into every media-query
+    // to allow in-place overrides of variants
+    const styleProps = objectFilter(props, (_, prop) => isStyleProp(prop))
 
     if (isComponentMultiStyleConfig && mediaQueryStyles) {
       return Object.fromEntries(
         Object.entries(mediaQueryStyles).map(
           ([partName, partStyles]) =>
-            [partName, { [mediaQuery]: partStyles }] as const,
+            [
+              partName,
+              { [mediaQuery]: mergeWith({}, partStyles, styleProps) },
+            ] as const,
         ),
       )
     }
 
     return {
-      [mediaQuery]: mediaQueryStyles,
+      [mediaQuery]: mergeWith({}, mediaQueryStyles, styleProps),
     }
   })
 
@@ -134,9 +142,7 @@ function getAllVariantStyles(
     .filter(isDefined)
 }
 
-// TODO:
-//  * call `styleConfig` in packages/system/src/use-style-config.ts
-//  * mark updated object structure config as deprecated
+// TODO: mark updated object structure config as deprecated
 export function interpretStyleConfig(
   colorMode: ColorMode,
   theme: Dict,

@@ -97,13 +97,7 @@ export const simpleMD = () => <SimpleTable size="md" />
 export const simpleLG = () => <SimpleTable size="lg" />
 
 export const stripedSM = () => <SimpleTable variant="striped" size="sm" />
-export const stripedMD = () => (
-  <SimpleTable
-    variant={["striped", "simple", "striped"]}
-    size={["sm", "md", "lg"]}
-    border="10px solid red"
-  />
-)
+export const stripedMD = () => <SimpleTable variant="striped" size="md" />
 export const stripedLG = () => <SimpleTable variant="striped" size="lg" />
 
 export const unstyled = () => <SimpleTable variant="unstyled" size="none" />

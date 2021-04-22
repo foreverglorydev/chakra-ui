@@ -1,4 +1,9 @@
-import { StyleConfigOptions, SystemStyleObject } from "@chakra-ui/styled-system"
+import {
+  CSSWithMultiValues,
+  RecursiveCSSObject,
+  StyleConfigOptions,
+  SystemStyleObject,
+} from "@chakra-ui/styled-system"
 import { Dict, get } from "@chakra-ui/utils"
 import { useChakra } from "./hooks"
 import { ThemingProps } from "./system.types"
@@ -46,5 +51,8 @@ export function useMultiStyleConfig(
   themeKey: string,
   props: ThemingProps & Dict,
 ) {
-  return useStyleConfig(themeKey, props)
+  return useStyleConfig(themeKey, props) as Record<
+    string,
+    Record<string, SystemStyleObject>
+  >
 }
