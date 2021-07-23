@@ -15,6 +15,9 @@ export function isNumeric(value: any) {
   return value != null && value - parseFloat(value) + 1 >= 0
 }
 
+export const isDecimal = (value: any) =>
+  !Number.isInteger(parseFloat(value.toString()))
+
 // Array assertions
 export function isArray<T>(value: any): value is Array<T> {
   return Array.isArray(value)
