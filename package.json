@@ -59,12 +59,16 @@
     "discord": "ts-node scripts/discord.ts",
     "create:pkg": "ts-node scripts/plopfile.ts",
     "release": "changeset publish",
-    "notify:release": "yarn changelog:write && yarn discord && yarn changelog:commit"
+    "version:canary": "changeset version --snapshot canary",
+    "release:canary": "changeset publish --tag canary",
+    "version:rc": "changeset version --snapshot rc",
+    "release:rc": "changeset publish --tag rc"
   },
   "resolutions": {
     "**/react": "17.0.2",
     "**/react-dom": "17.0.2",
-    "@popperjs/core": "2.9.3"
+    "@popperjs/core": "2.9.3",
+    "minipass": "2.8.5"
   },
   "version": "1.0.0",
   "dependencies": {
